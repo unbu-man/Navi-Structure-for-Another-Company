@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Build and test company assistants with Navi.">
+  <title>Navi · Company assistants</title>
+  <link rel="stylesheet" href="/assets/style.css">
+  <script src="/assets/app.js" type="module"></script>
+</head>
+<body>
+  <div class="shell" id="shell">
+    <aside class="sidebar" id="sidebar" aria-label="Workspace navigation" hidden>
+      <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"><i></i></span><span>Navi</span></a>
+      <div class="company-block">
+        <label for="bot-picker">Company bot</label>
+        <div class="select-wrap">
+          <span class="avatar small" id="company-initials" aria-hidden="true">CH</span>
+          <select id="bot-picker" aria-label="Company bot"></select>
+        </div>
+        <button class="button sidebar-create" id="create-bot" type="button"><span aria-hidden="true">+</span> New bot</button>
+      </div>
+      <nav class="navigation" id="navigation" aria-label="Bot tools">
+        <button data-view="playground" type="button"><span class="nav-icon icon-chat" aria-hidden="true"></span>Playground</button>
+        <button data-view="setup" type="button"><span class="nav-icon icon-setup" aria-hidden="true"></span>Bot setup</button>
+        <button data-view="leads" type="button"><span class="nav-icon icon-calendar" aria-hidden="true"></span>Meeting requests</button>
+        <button data-view="share" type="button"><span class="nav-icon icon-share" aria-hidden="true"></span>Share bot</button>
+      </nav>
+      <div class="sidebar-footer">
+        <span class="mode" id="mode"></span>
+        <button type="button" class="text-button" id="sign-out" hidden>Sign out</button>
+      </div>
+    </aside>
+    <main id="main" class="main">
+      <div class="loading" role="status">Opening Navi…</div>
+    </main>
+  </div>
+  <dialog id="meeting-dialog" class="dialog" aria-labelledby="meeting-title"></dialog>
+  <template id="chat-template">
+    <section class="chat card" aria-label="Conversation">
+      <div class="chat-bar">
+        <div class="chat-brand">
+          <span class="avatar chat-avatar" aria-hidden="true"></span>
+          <div><h2 class="chat-title"></h2><p>Company assistant</p></div>
+        </div>
+        <div class="chat-tools">
+          <select class="language" aria-label="Reply language"><option value="auto">Auto</option><option value="en">English</option><option value="km">ខ្មែរ</option></select>
+          <button class="button icon-button reset" type="button" aria-label="Reset conversation" title="Reset conversation">⟳</button>
+        </div>
+      </div>
+      <div class="messages" role="log" aria-label="Chat messages" aria-live="polite"></div>
+      <div class="composer-area">
+        <div class="chat-suggestions"></div>
+        <form class="composer">
+          <label class="sr-only" for="chat-input">Your message</label>
+          <textarea id="chat-input" name="message" rows="1" maxlength="1200" required></textarea>
+          <button class="button primary send" type="submit">Send</button>
+        </form>
+        <p class="chat-footnote">Keep passwords and private records out of chat.</p>
+      </div>
+    </section>
+  </template>
+</body>
+</html>
