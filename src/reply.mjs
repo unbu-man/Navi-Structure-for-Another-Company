@@ -1,4 +1,4 @@
-import { clickHrAppListing, clickHrGuides } from './clickhr-guides.mjs';
+import { clickHrAppListing, clickHrAttendanceReports, clickHrGuides } from './clickhr-guides.mjs';
 
 const khmer = /\p{Script=Khmer}/u;
 const romanKhmerPrice = ['tamlai', 'tomlai', 'domlai', 'tomlei', 'thlai ponman', 'kit loy'];
@@ -16,6 +16,7 @@ const clickHrQuestionAliases = {
   attendance: ['punch in', 'punch out', 'កាលវិភាគធ្វើការ'],
   leave: ['som chbab chhop', 'som chbab chop somrak'],
   payroll: ['bunhchi prak kha'],
+  mobile: ['pay slip', 'pay slips', 'wage slip', 'wage slips'],
 };
 const clearOutOfScope = [
   'i go to school', 'i go to schol', 'i am going to school', 'ខ្ញុំទៅសាលា',
@@ -53,6 +54,10 @@ function asksUnverifiedClickHrDetail(query) {
 
 function findFaqs(message, bot) {
   return bot.faqs.map((faq) => {
+    if (bot.slug === 'clickhr' && faq.id === 'attendance' && matches(message, clickHrAttendanceReports.tags)) {
+      const { en, km, url } = clickHrAttendanceReports;
+      return { faq: { ...faq, en, km, url }, score: 3 };
+    }
     const aliases = bot.slug === 'clickhr' ? clickHrQuestionAliases[faq.id] ?? [] : [];
     const matched = [...new Set([...faq.tags, faq.title, ...aliases])].filter((term) => includesTerm(message, term));
     const strongest = Math.max(0, ...matched.map((term) => (term.includes(' ') || khmer.test(term) ? 3 : 2)));
@@ -161,7 +166,7 @@ export async function replyTo(bot, { message, language, previous }, classify) {
     ], ['leave-balance']);
   }
   if (asksOwnLeaveBalance ||
-      /\b(?:my|our) (?:own )?(?:salary|payslip|password|login|account|payroll data|overtime)\b/u.test(query) ||
+      /\b(?:my|our) (?:own )?(?:salary|payslips?|pay slips?|wage slips?|password|login|account|payroll data|overtime)\b/u.test(query) ||
       /\b(?:overtime|hours) (?:did i work|have i worked|did i log)\b/u.test(query) ||
       matches(query, ['reset password', 'forgot password', 'salary of', 'password reset', 'ភ្លេចពាក្យសម្ងាត់',
         'ប្រាក់ខែរបស់ខ្ញុំ', 'ម៉ោងបន្ថែមរបស់ខ្ញុំ', 'bangkan dai prak kha robos knhom'])) {
@@ -174,7 +179,9 @@ export async function replyTo(bot, { message, language, previous }, classify) {
   if (requiresDetails.test(query) || asksWhere) return fallback('needs_clarification', copy.clarification(bot.name));
   if (isClickHr) {
     const askingAboutClockIn = matches(query, ['clock in', 'check in', 'កត់ត្រាម៉ោងចូល']);
-    const askingAboutOvertime = matches(query, ['ot request', 'overtime request', 'សំណើធ្វើការថែមម៉ោង']);
+    const askingAboutOvertime = matches(query, ['ot request', 'ot requests', 'overtime request', 'overtime requests',
+      'request overtime', 'សំណើធ្វើការថែមម៉ោង', 'ស្នើសុំធ្វើការថែមម៉ោង']);
+    const askingForOvertimeMenu = /\b(?:where is|where s|which (?:menu|screen|tab))\b/u.test(query);
     const askingHow = /\b(?:how do i|how can i|where (?:do|can) i)\b/u.test(query) ||
       matches(query, ['យ៉ាងដូចម្តេច', 'ដោយរបៀបណា', 'នៅឯណា']);
     const reportingProblem = matches(query, ['can t', 'cannot', 'error', 'failed', 'មិនបាន', 'សារកំហុស']);
@@ -182,7 +189,9 @@ export async function replyTo(bot, { message, language, previous }, classify) {
     if (vagueAppProblem || (reportingProblem && (askingAboutClockIn || askingAboutOvertime))) {
       return fallback('needs_clarification', copy.troubleshooting, contact);
     }
-    if (askingHow && askingAboutOvertime) return fallback('missing_information', copy.overtimeGuide, contact);
+    if (askingAboutOvertime && (askingHow || askingForOvertimeMenu)) {
+      return fallback('missing_information', copy.overtimeGuide, contact);
+    }
     const askingToRequestLeave = /\b(?:request (?:annual )?leave|apply for (?:annual )?leave)\b/u.test(query) ||
       matches(query, ['ស្នើសុំឈប់សម្រាក', 'ស្នើសុំការឈប់សម្រាក']);
     if (askingHow && (askingAboutClockIn || askingToRequestLeave) && !asksUnverifiedClickHrDetail(query)) {

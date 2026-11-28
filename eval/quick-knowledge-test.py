@@ -1,4 +1,4 @@
-"""Exercise the free Click HR HTTP API and optionally probe a knowledge CSV."""
+"""Exercise the free Click HR HTTP API and probe a public knowledge CSV."""
 
 import argparse
 import csv
@@ -10,6 +10,10 @@ from collections import Counter
 from dataclasses import dataclass
 from math import sqrt
 from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_CSV = REPO_ROOT / 'Navi-Click-HR-Public-Knowledge.csv'
 
 
 @dataclass(frozen=True)
@@ -98,6 +102,7 @@ STOP_WORDS = set('a an and are can click hr clickhr do does for how i in is it m
 
 def features(text):
     text = unicodedata.normalize('NFKC', text).casefold()
+    text = re.sub(r'\b(?:pay|wage)[ -]+slip(s?)\b', r'payslip\1', text)
     words = re.findall(r'[a-z0-9]+|[\u1780-\u17ff]+', text)
     counts = Counter()
     for word in words:
@@ -126,24 +131,24 @@ def closest(question, rows):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--csv', type=Path, help='Optional Navi-Click-HR-Public-Knowledge.csv')
+    parser.add_argument('--csv', type=Path, default=DEFAULT_CSV, help='Override the bundled public knowledge CSV')
     parser.add_argument('--query', help='Send one query instead of the ten labeled checks')
     parser.add_argument('--url', help='Use a running Navi server instead of a temporary free server')
     args = parser.parse_args()
+    if not args.csv.is_file():
+        parser.error(f'CSV not found at {args.csv}. Run git pull for the bundled CSV or pass its path with --csv.')
     try:
-        rows = []
-        if args.csv:
-            with args.csv.open(encoding='utf-8-sig', newline='') as file:
-                reader = csv.DictReader(file)
-                required = {'id', 'question_en', 'question_km', 'answer_en', 'answer_km', 'review_status', 'source_url'}
-                if not required.issubset(reader.fieldnames or []):
-                    parser.error('CSV is missing columns required by the knowledge probe')
-                rows = list(reader)
+        with args.csv.open(encoding='utf-8-sig', newline='') as file:
+            reader = csv.DictReader(file)
+            required = {'id', 'question_en', 'question_km', 'answer_en', 'answer_km', 'review_status', 'source_url'}
+            if not required.issubset(reader.fieldnames or []):
+                parser.error('CSV is missing columns required by the knowledge probe')
+            rows = list(reader)
         by_id = {row['id']: row for row in rows}
         questions = [args.query] if args.query is not None else [case.question for case in CASES]
         run = subprocess.run(
             ['node', '--input-type=module', '-e', REQUESTS],
-            cwd=Path(__file__).resolve().parents[1], input=json.dumps({'questions': questions, 'url': args.url}),
+            cwd=REPO_ROOT, input=json.dumps({'questions': questions, 'url': args.url}),
             capture_output=True, text=True, encoding='utf-8', timeout=65, check=True,
         )
     except subprocess.CalledProcessError as error:
@@ -157,7 +162,7 @@ def main():
         candidate = closest(args.query, rows)
         if candidate:
             print(f"CSV candidate (lexical overlap only)  {candidate['id']} | {candidate['review_status']} | {candidate['source_url']}")
-        elif args.csv:
+        else:
             print('CSV candidate  none')
         return 0
 
@@ -170,7 +175,7 @@ def main():
         print(f"   API [{reply['language']}] {route}  {reply['text']}")
         if failures:
             print(f"   Failed checks  {', '.join(failures)}")
-        if args.csv and case.row:
+        if case.row:
             csv_total += 1
             row_id = 'clickhr-' + case.row
             expected = by_id.get(row_id)
@@ -181,8 +186,7 @@ def main():
                         'answer present' if expected[f'answer_{case.language}'].strip() else 'answer blank')
             print(f'   CSV expected {row_id} ({coverage}) | retrieved {found}')
     print(f'\nAPI checks passed  {passed}/{len(CASES)}')
-    if args.csv:
-        print(f'CSV expected rows ranked first  {csv_matches}/{csv_total}')
+    print(f'CSV expected rows ranked first  {csv_matches}/{csv_total}')
     return int(passed != len(CASES))
 
 

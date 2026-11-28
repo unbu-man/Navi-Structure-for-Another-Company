@@ -97,6 +97,15 @@ Set `NAVI_OLLAMA_MODEL` to a different local model name when comparing a compati
 
 ## Evaluate Click HR
 
+Run the free HTTP smoke test with Node.js 24+ and Python 3.10+. It starts a temporary local server and uses the [bundled public CSV](Navi-Click-HR-Public-Knowledge.csv) to compare search candidates with the API replies. The API uses the bot’s configured answers and source-backed guidance. The CSV search runs in the test tool.
+
+```bash
+python3 eval/quick-knowledge-test.py
+python3 eval/quick-knowledge-test.py --query 'Where is the overtime request menu?'
+```
+
+Use `--csv PATH` to compare a different CSV with the same columns. Run the routing evaluation separately to compare model providers.
+
 ```bash
 NAVI_ROUTER=faq npm run eval
 NAVI_ROUTER=ollama npm run eval
