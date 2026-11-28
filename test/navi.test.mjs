@@ -161,7 +161,7 @@ test('Gemma routing validates model decisions and preserves approved answer text
   const { configuredRouter, ollamaRouter } = await import('../src/model-router.mjs');
   assert.equal(configuredRouter({ NAVI_ROUTER: 'ollama' }).modelProvider, 'ollama');
   assert.throws(() => ollamaRouter({ origin: 'https://example.com' }), /local HTTP origin/);
-  const message = 'Tver doch mdech dermbei som chbab chop somrak?';
+  const message = 'How do I put in for a break from work?';
   const fakeModel = (decision) => ollamaRouter({
     model: 'navi-gemma-adapter',
     fetcher: async (url, options) => {
@@ -194,4 +194,36 @@ test('Romanized Khmer pricing and unverified administrator permissions follow th
   assert.ok(price.actions.some(({ type }) => type === 'meeting'));
   const permissions = await replyTo(clickhr, { message: 'Which admins can edit employee contracts?' }, unexpectedModelCall);
   assert.equal(permissions.intent, 'unknown');
+});
+
+test('Free chat distinguishes known fallback reasons and answers supported paraphrases', async (t) => {
+  const app = await start({ modelProvider: 'faq' });
+  t.after(app.close);
+  for (const example of [
+    { message: 'I go to schol', intent: 'unknown', reason: 'out_of_scope' },
+    { message: 'What is the cost to buy Bitcoin នៅភ្នំពេញ?', intent: 'unknown', reason: 'out_of_scope' },
+    { message: 'It doesn’t work.', intent: 'unknown', reason: 'needs_clarification' },
+    { message: 'My screen won’t load', intent: 'unknown', reason: 'needs_clarification' },
+    { message: 'វាមិនដំណើរការ', intent: 'unknown', reason: 'needs_clarification', language: 'km' },
+    { message: 'Does Click HR support this specific fingerprint device?', intent: 'unknown', reason: 'missing_information', contact: true },
+    { message: 'តើ Click HR អាចប្រើឧបករណ៍ស្កេនម្រាមដៃម៉ូដែល X200 បានទេ?', intent: 'unknown', reason: 'missing_information', contact: true, language: 'km' },
+    { message: 'Can our school use Click HR to track teachers’ attendance?', intent: 'faq', topic: 'attendance' },
+    { message: 'Can staff punch in from their phones?', intent: 'faq', topic: 'attendance' },
+    { message: 'How much overtime did I work last month?', intent: 'account', contact: true },
+    { message: 'How much annual leave do I have left?', intent: 'account', contact: true },
+    { message: 'What would you charge our company each month?', intent: 'pricing', meeting: true },
+    { message: 'Click HR ach som chbab chhop tam app ban te?', intent: 'faq', topic: 'leave' },
+    { message: 'Can Click HR handle 3 shifts?', previous: { intent: 'pricing' }, intent: 'faq', topic: 'attendance' },
+  ]) {
+    const { message, previous, intent, reason, topic, language, contact, meeting } = example;
+    const response = await app.request('/api/bots/clickhr/chat', { method: 'POST', body: { message, previous } });
+    assert.equal(response.status, 200, message);
+    const reply = await response.json();
+    assert.equal(reply.intent, intent, message);
+    assert.equal(reply.reason, reason, message);
+    if (language) assert.equal(reply.language, language, message);
+    if (topic) assert.deepEqual(reply.topics, [topic], message);
+    assert.equal(reply.actions.some(({ type }) => type === 'meeting'), Boolean(meeting), message);
+    if (contact) assert.ok(reply.actions.some(({ url }) => url === clickhr.contactUrl), message);
+  }
 });

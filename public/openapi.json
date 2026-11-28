@@ -98,6 +98,7 @@
         "type": "object", "required": ["intent", "text", "actions", "topics", "language", "mode"],
         "properties": {
           "intent": { "type": "string" },
+          "reason": { "type": "string", "description": "Optional detail when the intent is unknown", "enum": ["out_of_scope", "needs_clarification", "missing_information"] },
           "text": { "type": "string" },
           "actions": { "type": "array", "items": {
             "type": "object", "required": ["type", "label"], "properties": {

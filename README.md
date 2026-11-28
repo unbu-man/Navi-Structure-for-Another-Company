@@ -70,6 +70,16 @@ curl -sS http://127.0.0.1:3000/api/bots/clickhr/chat \
   -d '{"message":"Click HR តម្លៃប៉ុន្មានសម្រាប់ 50 employees?","language":"auto"}'
 ```
 
+For some replies with `intent: "unknown"`, the API also returns a `reason`:
+
+| Reason | Example | Response |
+| --- | --- | --- |
+| `out_of_scope` | I go to schol | Redirect to Click HR questions. |
+| `needs_clarification` | It doesn’t work | Ask which feature and task the visitor means. |
+| `missing_information` | Does Click HR support this specific fingerprint device? | Say the detail is unverified and offer support. |
+
+The free matcher recognizes selected phrases in English, Khmer, and Khmer typed in Latin letters. When a message remains unclear, the API may return a general `unknown` reply. A supported paraphrase such as “Can staff punch in from their phones?” can return the saved attendance FAQ.
+
 For a follow-up, add `previous` with the preceding reply's `intent` and `topics`. For another company, replace `clickhr` with the bot slug. Browser clients can use the same-origin API or the existing iframe. Server clients can call the API directly.
 
 ## Optional Gemma or OpenAI routing
