@@ -45,6 +45,33 @@ Click HR’s seeded product information comes from the [official website](https:
 
 Bots share one owner workspace. The public chat answers from the selected company’s configuration and the inbox shows that company’s requests. Each bot has its own visitor URL at `/chat/<slug>` and embed URL at `/embed/<slug>`. A localhost URL is reachable on the computer running Navi. A deployed HTTPS URL is needed for customers to use the link or iframe from their own devices.
 
+## Free API and browser demo
+
+Start the free edition with Node.js 24 or newer:
+
+```bash
+npm run start:free
+```
+
+This command always uses the bilingual FAQ engine, even if you already configured a model provider. It needs no model download, paid API key, or account. Navi runs on the computer that starts it. A remotely hosted URL needs a server of its own.
+
+Open [the API demo](http://127.0.0.1:3000/api-demo) to try Click HR questions and inspect the full JSON response. The [OpenAPI definition](http://127.0.0.1:3000/api/openapi.json) is available from the same server.
+
+| Method | Endpoint | Result |
+| --- | --- | --- |
+| GET | `/api/health` | Confirms the server is running. |
+| GET | `/api/bots/clickhr` | Returns the public bot profile and routing mode. |
+| POST | `/api/bots/clickhr/chat` | Returns the reply text, language, intent, FAQ topics and available actions. |
+| POST | `/api/bots/clickhr/leads` | Saves a consented kickoff request in the inbox. |
+
+```bash
+curl -sS http://127.0.0.1:3000/api/bots/clickhr/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"message":"Click HR តម្លៃប៉ុន្មានសម្រាប់ 50 employees?","language":"auto"}'
+```
+
+For a follow-up, add `previous` with the preceding reply's `intent` and `topics`. For another company, replace `clickhr` with the bot slug. Browser clients can use the same-origin API or the existing iframe. Server clients can call the API directly.
+
 ## Optional Gemma or OpenAI routing
 
 Navi uses the FAQ matcher and business rules first. For unmatched questions, enable a model to select an approved FAQ ID or a handoff. Navi still renders the saved answer or a backend workflow message. Provider failures use the contact fallback.

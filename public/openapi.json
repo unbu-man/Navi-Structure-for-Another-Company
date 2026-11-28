@@ -1,0 +1,116 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Navi Public Bot API",
+    "version": "1.0.0",
+    "description": "Choose a company bot, send a question, or submit a consented kickoff request. The self-hosted FAQ mode needs no model API key."
+  },
+  "servers": [{ "url": "/" }],
+  "paths": {
+    "/api/health": {
+      "get": {
+        "summary": "Check that Navi is running",
+        "responses": { "200": { "description": "Navi is running", "content": { "application/json": { "schema": { "type": "object", "required": ["status"], "properties": { "status": { "const": "ok" } } } } } } }
+      }
+    },
+    "/api/bots/{slug}": {
+      "parameters": [{ "$ref": "#/components/parameters/BotSlug" }],
+      "get": {
+        "summary": "Read public company bot information",
+        "responses": {
+          "200": {
+            "description": "Public bot profile and current routing mode",
+            "content": { "application/json": { "schema": { "type": "object", "required": ["bot", "aiEnabled", "modelProvider"], "properties": {
+              "bot": { "type": "object", "required": ["slug", "name"], "properties": { "slug": { "type": "string" }, "name": { "type": "string" } } },
+              "aiEnabled": { "type": "boolean" },
+              "modelProvider": { "type": "string", "enum": ["faq", "ollama", "openai"] }
+            } } } }
+          },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/bots/{slug}/chat": {
+      "parameters": [{ "$ref": "#/components/parameters/BotSlug" }],
+      "post": {
+        "summary": "Send a chat message",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": {
+          "type": "object", "required": ["message"], "properties": {
+            "message": { "type": "string", "minLength": 1, "maxLength": 1200 },
+            "language": { "type": "string", "enum": ["auto", "en", "km"], "default": "auto" },
+            "previous": {
+              "type": "object", "description": "Optional intent and topics from the previous response in this conversation",
+              "properties": { "intent": { "type": "string" }, "topics": { "type": "array", "maxItems": 3, "items": { "type": "string" } } }
+            }
+          }
+        }, "example": { "message": "Click HR តម្លៃប៉ុន្មានសម្រាប់ 50 employees?", "language": "auto" } } } },
+        "responses": {
+          "200": { "description": "Reply and available actions", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ChatReply" } } } },
+          "400": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" },
+          "415": { "$ref": "#/components/responses/Error" },
+          "429": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/api/bots/{slug}/leads": {
+      "parameters": [{ "$ref": "#/components/parameters/BotSlug" }],
+      "post": {
+        "summary": "Save a kickoff request in the company's inbox",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": {
+          "type": "object", "required": ["requestId", "name", "email", "company", "consent"],
+          "properties": {
+            "requestId": { "type": "string", "format": "uuid", "description": "Reuse the UUID on retry with the same details." },
+            "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+            "email": { "type": "string", "format": "email", "maxLength": 180 },
+            "company": { "type": "string", "minLength": 1, "maxLength": 120 },
+            "needs": { "type": "string", "maxLength": 850 },
+            "consent": { "const": true }
+          }
+        } } } },
+        "responses": {
+          "201": { "description": "Request saved for staff review", "content": { "application/json": { "schema": {
+            "type": "object", "required": ["id", "createdAt"], "properties": {
+              "id": { "type": "string", "format": "uuid" },
+              "createdAt": { "type": "string", "format": "date-time" }
+            }
+          } } } },
+          "400": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" },
+          "409": { "$ref": "#/components/responses/Error" },
+          "415": { "$ref": "#/components/responses/Error" },
+          "429": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "BotSlug": { "name": "slug", "in": "path", "required": true, "schema": { "type": "string" }, "example": "clickhr" }
+    },
+    "responses": {
+      "Error": { "description": "Request rejected", "content": { "application/json": { "schema": {
+        "type": "object", "required": ["error"], "properties": { "error": { "type": "string" } }
+      } } } }
+    },
+    "schemas": {
+      "ChatReply": {
+        "type": "object", "required": ["intent", "text", "actions", "topics", "language", "mode"],
+        "properties": {
+          "intent": { "type": "string" },
+          "text": { "type": "string" },
+          "actions": { "type": "array", "items": {
+            "type": "object", "required": ["type", "label"], "properties": {
+              "type": { "type": "string", "enum": ["link", "meeting"] },
+              "label": { "type": "string" },
+              "url": { "type": "string", "format": "uri" }
+            }
+          } },
+          "topics": { "type": "array", "items": { "type": "string" } },
+          "language": { "type": "string", "enum": ["km", "en"] },
+          "mode": { "type": "string", "enum": ["local", "ai"] }
+        }
+      }
+    }
+  }
+}

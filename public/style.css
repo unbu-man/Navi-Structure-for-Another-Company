@@ -204,3 +204,9 @@ select { appearance: none; padding-right: 35px !important; background-image: url
   .language { max-width: 104px; }
   .breadcrumb span:first-child, .breadcrumb .separator { display: none; }
 }
+
+.api-response {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}

@@ -12,6 +12,9 @@ const assets = new Map(Object.entries({
   '/': ['index.html', 'text/html; charset=utf-8'],
   '/assets/app.js': ['app.js', 'text/javascript; charset=utf-8'],
   '/assets/style.css': ['style.css', 'text/css; charset=utf-8'],
+  '/api-demo': ['api-demo.html', 'text/html; charset=utf-8'],
+  '/assets/api-demo.js': ['api-demo.js', 'text/javascript; charset=utf-8'],
+  '/api/openapi.json': ['openapi.json', 'application/json; charset=utf-8'],
 }).map(([path, [file, type]]) => [path, { type, body: readFileSync(new URL(`../public/${file}`, import.meta.url)) }]));
 
 const slugPath = '([a-z0-9]+(?:-[a-z0-9]+)*)';
@@ -241,7 +244,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     allowLocalAdmin: localHosts.has(host),
     secureCookie: process.env.NAVI_SECURE_COOKIE === '1',
     publicOrigin: process.env.NAVI_PUBLIC_ORIGIN ? new URL(process.env.NAVI_PUBLIC_ORIGIN).origin : '',
-    ...configuredRouter(),
+    ...configuredRouter(process.argv.includes('--free') ? { NAVI_ROUTER: 'faq' } : process.env),
   });
   const displayHost = host === '0.0.0.0' ? 'localhost' : host.includes(':') ? `[${host}]` : host;
   server.listen(port, host, () => console.log(`Navi is running at http://${displayHost}:${server.address().port}`));
