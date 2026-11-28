@@ -234,3 +234,52 @@ test('Free chat distinguishes known fallback reasons and answers supported parap
     }
   }
 });
+
+test('Click HR gives verified app guidance, separates partial answers, and keeps pricing in scope', async (t) => {
+  const app = await start({ modelProvider: 'faq' });
+  t.after(app.close);
+  async function ask(message, previous) {
+    const response = await app.request('/api/bots/clickhr/chat', {
+      method: 'POST', body: { message, previous },
+    });
+    assert.equal(response.status, 200);
+    return response.json();
+  }
+
+  const leave = await ask('How do I request annual leave in the app?');
+  assert.match(leave.text, /iOS app.*Leave.*Create New Leave/u);
+  assert.ok(leave.actions.some(({ url }) => url?.startsWith('https://apps.apple.com/')));
+  const clockIn = await ask('តើខ្ញុំត្រូវកត់ត្រាម៉ោងចូលធ្វើការតាមទូរស័ព្ទយ៉ាងដូចម្តេច?');
+  assert.deepEqual(clockIn.topics, ['attendance']);
+  assert.equal(clockIn.language, 'km');
+  assert.match(clockIn.text, /ប៊ូតុងកត់ត្រាម៉ោងចូលនៅទំព័រដើម/u);
+
+  const overtime = await ask('តើខ្ញុំអាច submit OT request នៅឯណា?');
+  assert.equal(overtime.reason, 'missing_information');
+  assert.ok(overtime.actions.some(({ url }) => url === clickhr.contactUrl));
+  const problem = await ask('I cannot clock in.');
+  assert.equal(problem.reason, 'needs_clarification');
+  assert.match(problem.text, /error message/u);
+
+  const partial = await ask('Can Click HR manage payroll and sync with QuickBooks?');
+  assert.deepEqual(partial.topics, ['payroll']);
+  assert.match(partial.text, /don’t have verified information/u);
+  assert.ok(partial.actions.some(({ url }) => url === clickhr.contactUrl));
+  const unverified = await ask('Can Click HR sync payroll with QuickBooks?');
+  assert.equal(unverified.reason, 'missing_information');
+  assert.deepEqual(unverified.topics, []);
+
+  const balance = await ask('Where can I check my leave balance?');
+  const menu = await ask('Where is that menu?', balance);
+  assert.match(menu.text, /Leave.*AL/u);
+  assert.equal((await ask('Where is that menu?')).reason, 'needs_clarification');
+
+  const price = await ask('តើតម្លៃប្រើប្រាស់ Click HR សម្រាប់បុគ្គលិក ១០០ នាក់ប៉ុន្មាន?');
+  for (const question of ['ចុះបើបុគ្គលិក ១៥០ នាក់វិញ?', 'ចុះបើ 250 staff?']) {
+    assert.equal((await ask(question, price)).intent, 'pricing');
+    assert.notEqual((await ask(question)).intent, 'pricing');
+  }
+  const offTopic = await ask('How much ត្រូវចំណាយដើម្បីទិញ Bitcoin?', price);
+  assert.equal(offTopic.reason, 'out_of_scope');
+  assert.equal(offTopic.actions.length, 0);
+});
