@@ -283,3 +283,79 @@ test('Click HR gives verified app guidance, separates partial answers, and keeps
   assert.equal(offTopic.reason, 'out_of_scope');
   assert.equal(offTopic.actions.length, 0);
 });
+
+test('Click HR follows the customer task across languages, roles, and platforms', async (t) => {
+  const app = await start();
+  t.after(app.close);
+  async function ask(message, previous, slug = 'clickhr') {
+    const response = await app.request('/api/bots/' + slug + '/chat', {
+      method: 'POST', body: { message, previous },
+    });
+    assert.equal(response.status, 200);
+    return response.json();
+  }
+
+  const manager = await ask('Can our supervisors sign off on time off from a phone?');
+  assert.deepEqual(manager.knowledgeIds, ['leave-approval']);
+  assert.match(manager.text, /supports leave approvals in its mobile app/u);
+  const managerSteps = await ask('Which screen should they open?', manager);
+  assert.equal(managerSteps.reason, 'missing_information');
+  assert.match(managerSteps.text, /approvals in its mobile app/u);
+  assert.doesNotMatch(managerSteps.text, /Create New Leave/u);
+  assert.ok(managerSteps.actions.some(({ url }) => url === clickhr.contactUrl));
+
+  const employee = await ask('Can staff submit ពាក្យសុំឈប់សម្រាក on an iPhone?');
+  assert.equal(employee.language, 'km');
+  assert.deepEqual(employee.knowledgeIds, ['leave-request']);
+  const employeeSteps = await ask('តើត្រូវចុចត្រង់ណា?', employee);
+  assert.equal(employeeSteps.language, 'km');
+  assert.match(employeeSteps.text, /Create New Leave/u);
+  assert.ok(employeeSteps.actions.some(({ url }) => url.startsWith('https://apps.apple.com/')));
+
+  const android = await ask('What about on Android?', employeeSteps);
+  assert.equal(android.reason, 'missing_information');
+  assert.doesNotMatch(android.text, /Create New Leave/u);
+  assert.equal((await ask('Where do they tap?', android)).reason, 'missing_information');
+
+  const bank = await ask('Can finance create a payout file for our bank?', managerSteps);
+  assert.deepEqual(bank.knowledgeIds, ['payroll-bank-export']);
+  assert.match(bank.text, /bank payment files/u);
+
+  const unanchored = await ask('Where do they tap?');
+  assert.equal(unanchored.reason, 'needs_clarification');
+  const unknown = await ask('Where do they tap?', { knowledgeIds: ['unrecognized'] });
+  assert.equal(unknown.reason, 'needs_clarification');
+
+  const shop = await app.request('/api/admin/bots', {
+    method: 'POST', body: { slug: 'sample-shop', name: 'Sample Shop', welcomeEn: 'Hello.',
+      pricingPolicy: 'faq', meetingEnabled: false, faqs: [] },
+  });
+  assert.equal(shop.status, 201);
+  const separate = await ask('Where do they tap?', manager, 'sample-shop');
+  assert.equal(separate.reason, 'needs_clarification');
+  assert.ok(separate.actions.every(({ url }) => !url.includes('clickhr.app')));
+});
+
+test('The model can route to source-backed knowledge and cannot supply its own instructions', async () => {
+  const { ollamaRouter } = await import('../src/model-router.mjs');
+  const route = (topic) => ollamaRouter({
+    fetcher: async (_, options) => {
+      const { messages } = JSON.parse(options.body);
+      const { knowledge, previousKnowledgeIds } = JSON.parse(messages[1].content);
+      assert.equal(knowledge.find(({ id }) => id === 'leave-approval').hasSteps, false);
+      assert.deepEqual(previousKnowledgeIds, ['leave-approval']);
+      return Response.json({ message: { content: JSON.stringify({
+        route: 'guide', topics: [topic], text: 'Open a screen invented by the model.',
+      }) } });
+    },
+  });
+  const request = {
+    message: 'Take me through the supervisor workflow.',
+    previous: { knowledgeIds: ['leave-approval'] },
+  };
+  const grounded = await replyTo(clickhr, request, route('leave-approval'));
+  assert.equal(grounded.mode, 'ai');
+  assert.equal(grounded.reason, 'missing_information');
+  assert.doesNotMatch(grounded.text, /invented by the model/u);
+  assert.equal((await replyTo(clickhr, request, route('unapproved-topic'))).intent, 'unknown');
+});

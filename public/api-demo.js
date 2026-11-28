@@ -19,7 +19,7 @@ form.addEventListener('submit', async (event) => {
       body: JSON.stringify(body),
     });
     const result = await response.json();
-    if (response.ok) previous = { intent: result.intent, topics: result.topics };
+    if (response.ok) previous = { intent: result.intent, topics: result.topics, knowledgeIds: result.knowledgeIds, platform: result.platform };
     status.textContent = `HTTP ${response.status}`;
     output.textContent = JSON.stringify(result, null, 2);
   } catch {

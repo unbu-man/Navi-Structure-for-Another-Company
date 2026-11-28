@@ -180,7 +180,7 @@ function buildChat(bot) {
       if (request !== activeRequest || !chat.isConnected) return;
       wait.remove();
       append('assistant', answer.text, answer.actions, answer.language);
-      previous = { intent: answer.intent, topics: answer.topics };
+      previous = { intent: answer.intent, topics: answer.topics, knowledgeIds: answer.knowledgeIds, platform: answer.platform };
     } catch (error) {
       if (request !== activeRequest || !chat.isConnected) return;
       wait.remove();

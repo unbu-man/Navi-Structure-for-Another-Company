@@ -1,4 +1,5 @@
-import { clickHrAppListing, clickHrAttendanceReports, clickHrGuides } from './clickhr-guides.mjs';
+import { clickHrAppListing } from './clickhr-guides.mjs';
+import { clickHrKnowledge } from './clickhr-knowledge.mjs';
 
 const khmer = /\p{Script=Khmer}/u;
 const romanKhmerPrice = ['tamlai', 'tomlai', 'domlai', 'tomlei', 'thlai ponman', 'kit loy'];
@@ -23,7 +24,14 @@ const clearOutOfScope = [
   'buy bitcoin', 'sell bitcoin', 'bitcoin price', 'price of bitcoin', 'ទិញ bitcoin', 'លក់ bitcoin', 'អាកាសធាតុយ៉ាងម៉េច', 'ព្យាករណ៍អាកាសធាតុ',
 ];
 const requiresDetails = /^(?:it (?:doesn t|does not|won t) work|not working|help|can you help(?: me)?|how do i do (?:this|it)|it (?:failed|is broken)|(?:(?:my|the) )?(?:screen|page|app) (?:won t load|doesn t load|will not load)|វាមិនដំណើរការ|ជួយខ្ញុំ|សូមជួយ(?:ខ្ញុំផង)?)$/u;
-
+const asksForSteps = /\b(?:how (?:do|does|can|should|to)|where|which (?:screen|menu|tab|button)|steps|instructions)\b/u;
+const stepsFollowUps = [
+  /^where (?:is|s) (?:it|that|this|(?:the|that) menu)$/u,
+  /^where (?:do|does|can|should) (?:i|we|they|he|she) (?:tap|click|go|find (?:it|this|that))$/u,
+  /^which (?:screen|menu|tab|button)(?: (?:should|do) (?:i|we|they|he|she) (?:use|open|tap))?$/u,
+  /^how (?:do|does|can|should) (?:i|we|they|he|she) (?:do (?:it|this|that)|set (?:it|this|that) up)$/u,
+  /^(?:(?:can you )?show me (?:how|the steps)|what are the steps)$/u,
+];
 
 function normalize(text) {
   return text.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ').trim();
@@ -40,6 +48,16 @@ function matches(normalized, terms) {
   return terms.some((term) => includesTerm(normalized, term));
 }
 
+function retrieveKnowledge(query, entries) {
+  const selected = new Map();
+  for (const entry of entries) {
+    if (!selected.has(entry.topic) && entry.terms.every((terms) => matches(query, terms))) {
+      selected.set(entry.topic, entry);
+    }
+  }
+  return [...selected.values()];
+}
+
 function asksUnverifiedClickHrDetail(query) {
   const mixedIntegration = includesTerm(query, 'integrate') && includesTerm(query, 'ជាមួយ');
   const asksSpecifics = mixedIntegration || matches(query, [
@@ -54,10 +72,6 @@ function asksUnverifiedClickHrDetail(query) {
 
 function findFaqs(message, bot) {
   return bot.faqs.map((faq) => {
-    if (bot.slug === 'clickhr' && faq.id === 'attendance' && matches(message, clickHrAttendanceReports.tags)) {
-      const { en, km, url } = clickHrAttendanceReports;
-      return { faq: { ...faq, en, km, url }, score: 3 };
-    }
     const aliases = bot.slug === 'clickhr' ? clickHrQuestionAliases[faq.id] ?? [] : [];
     const matched = [...new Set([...faq.tags, faq.title, ...aliases])].filter((term) => includesTerm(message, term));
     const strongest = Math.max(0, ...matched.map((term) => (term.includes(' ') || khmer.test(term) ? 3 : 2)));
@@ -83,7 +97,6 @@ const replyCopy = {
     leaveBalance: 'To check your balance, sign in to the Click HR mobile app. From the home screen, open Leave and look for AL (Annual Leave). If the balance is missing or looks wrong, ask your company’s HR team to check it.',
     mobileGuide: 'View app screenshots',
     troubleshooting: 'What happens when you try? Tell me which screen you are on and the error message, if you see one. You can also contact Click HR support.',
-    overtimeGuide: 'The Click HR app supports overtime requests. I don’t have verified steps for the exact OT menu. Click HR support or your company’s HR team can show you where to submit it.',
     account: 'For account issues or personal records, contact your company administrator or the support team. Please keep passwords and private records out of this chat.',
     thanks: 'You’re welcome! Is there anything else I can help you with?',
   },
@@ -103,7 +116,6 @@ const replyCopy = {
     leaveBalance: 'ដើម្បីពិនិត្យចំនួនថ្ងៃឈប់សម្រាកដែលនៅសល់ សូមចូលគណនីក្នុងកម្មវិធី Click HR។ នៅទំព័រដើម សូមបើក Leave (ការឈប់សម្រាក) ហើយរកមើល AL (ការឈប់សម្រាកប្រចាំឆ្នាំ)។ បើមិនឃើញចំនួនថ្ងៃ ឬឃើញថាចំនួនថ្ងៃមិនត្រឹមត្រូវ សូមស្នើឱ្យក្រុមធនធានមនុស្សរបស់ក្រុមហ៊ុនអ្នកពិនិត្យ។',
     mobileGuide: 'មើលរូបភាពនៃកម្មវិធី',
     troubleshooting: 'តើមានអ្វីកើតឡើងពេលអ្នកសាកល្បង? សូមប្រាប់ថាអ្នកនៅលើទំព័រណា ហើយមានសារកំហុសអ្វី បើមាន។ អ្នកក៏អាចទាក់ទងក្រុមជំនួយ Click HR បានដែរ។',
-    overtimeGuide: 'កម្មវិធី Click HR គាំទ្រសំណើធ្វើការថែមម៉ោង (OT)។ ខ្ញុំមិនទាន់មានការណែនាំដែលបានផ្ទៀងផ្ទាត់សម្រាប់ទីតាំងម៉ឺនុយ OT ទេ។ ក្រុមជំនួយ Click HR ឬក្រុមធនធានមនុស្សរបស់ក្រុមហ៊ុនអ្នកអាចបង្ហាញកន្លែងដាក់សំណើបាន។',
     account: 'សម្រាប់បញ្ហាគណនី ឬទិន្នន័យផ្ទាល់ខ្លួន សូមទាក់ទងអ្នកគ្រប់គ្រងក្រុមហ៊ុនរបស់អ្នក ឬផ្នែកជំនួយ។ សូមកុំផ្ញើពាក្យសម្ងាត់ ឬឯកសារឯកជនក្នុងការជជែកនេះ។',
     thanks: 'មិនអីទេ! តើមានអ្វីផ្សេងទៀតដែលខ្ញុំអាចជួយបានទេ?',
   },
@@ -152,14 +164,39 @@ export async function replyTo(bot, { message, language, previous }, classify) {
   };
 
   const isClickHr = bot.slug === 'clickhr';
+  const knowledge = isClickHr ? clickHrKnowledge.filter(({ topic }) => bot.faqs.some(({ id }) => id === topic)) : [];
+  const priorKnowledge = knowledge.filter(({ id }) => previous?.knowledgeIds?.includes(id));
+  const followUp = stepsFollowUps.some((pattern) => pattern.test(query.replace(/^(?:and|so) /u, ''))) ||
+    /^(?:and|what about|how about|on|for) (?:(?:on|for) )?(?:android|iphone|ios)$/u.test(query) ||
+    /^(?:តើ)?(?:ម៉ឺនុយនោះនៅឯណា|ត្រូវចុច(?:នៅឯណា|ត្រង់ណា)|ធ្វើដូចម្តេច)$/u.test(query.replaceAll(' ', ''));
+  const wantsSteps = asksForSteps.test(query) || followUp || matches(query, ['យ៉ាងដូចម្តេច', 'ដោយរបៀបណា', 'នៅឯណា']);
+  const platform = matches(query, ['android']) ? 'android' :
+    matches(query, ['iphone', 'ios']) ? 'ios' : followUp ? previous?.platform : undefined;
+
+  function answerKnowledge(entries, steps, mode = 'local') {
+    const cards = entries.map((entry) => {
+      const guide = steps && platform !== 'android' ? entry.steps : null;
+      return { ...entry, ...guide, id: entry.topic, missingSteps: steps && !guide };
+    });
+    const reply = { ...answer(cards, mode), knowledgeIds: entries.map(({ id }) => id) };
+    if (platform) reply.platform = platform;
+    if (cards.some(({ missingSteps }) => missingSteps)) {
+      reply.intent = 'unknown';
+      reply.reason = 'missing_information';
+      reply.text += '\n\n' + copy.unverified;
+      reply.actions = [...reply.actions, ...contact];
+    }
+    return reply;
+  }
+
   const asksOwnLeaveBalance = /\b(?:my|our) (?:own )?(?:annual )?leave balance\b/u.test(query) ||
     /\b(?:leave|pto|vacation time|vacation days) (?:do i have left|have i used|do i have remaining)\b/u.test(query) ||
     matches(query, ['ថ្ងៃឈប់សម្រាកនៅសល់', 'ថ្ងៃឈប់សម្រាកប្រចាំឆ្នាំនៅសល់', 'ថ្ងៃឈប់សម្រាកប្រចាំឆ្នាំរបស់ខ្ញុំនៅសល់']);
   const asksHowToViewLeaveBalance = /\b(?:check|view|see|find) (?:the |my |your )?(?:annual )?leave balance\b/u.test(query) ||
     matches(query, ['មើលចំនួនថ្ងៃឈប់សម្រាក', 'ពិនិត្យចំនួនថ្ងៃឈប់សម្រាក']) ||
     (includesTerm(query, 'leave balance') && matches(query, ['មើល', 'ពិនិត្យ', 'នៅឯណា']));
-  const asksWhere = /^(?:where (?:is|s) (?:that|the) menu|where do i find (?:that|it)|តើម៉ឺនុយនោះនៅឯណា)$/u.test(query);
-  const refersToLeaveBalance = asksWhere && previous?.intent === 'account' && previous.topics?.includes('leave-balance');
+  const refersToLeaveBalance = followUp && platform !== 'android' &&
+    previous?.intent === 'account' && previous.topics?.includes('leave-balance');
   if (isClickHr && (asksOwnLeaveBalance || asksHowToViewLeaveBalance || refersToLeaveBalance)) {
     return result('account', copy.leaveBalance, [
       { type: 'link', label: copy.mobileGuide, url: clickHrAppListing },
@@ -176,28 +213,15 @@ export async function replyTo(bot, { message, language, previous }, classify) {
   if (isClickHr && !mentionsBot && matches(query, clearOutOfScope)) {
     return fallback('out_of_scope', copy.outOfScope(bot.name));
   }
-  if (requiresDetails.test(query) || asksWhere) return fallback('needs_clarification', copy.clarification(bot.name));
+  if (requiresDetails.test(query) && !followUp) return fallback('needs_clarification', copy.clarification(bot.name));
+  const documents = retrieveKnowledge(query, knowledge);
   if (isClickHr) {
     const askingAboutClockIn = matches(query, ['clock in', 'check in', 'កត់ត្រាម៉ោងចូល']);
-    const askingAboutOvertime = matches(query, ['ot request', 'ot requests', 'overtime request', 'overtime requests',
-      'request overtime', 'សំណើធ្វើការថែមម៉ោង', 'ស្នើសុំធ្វើការថែមម៉ោង']);
-    const askingForOvertimeMenu = /\b(?:where is|where s|which (?:menu|screen|tab))\b/u.test(query);
-    const askingHow = /\b(?:how do i|how can i|where (?:do|can) i)\b/u.test(query) ||
-      matches(query, ['យ៉ាងដូចម្តេច', 'ដោយរបៀបណា', 'នៅឯណា']);
+    const askingAboutOvertime = documents.some(({ id }) => id === 'overtime-request');
     const reportingProblem = matches(query, ['can t', 'cannot', 'error', 'failed', 'មិនបាន', 'សារកំហុស']);
     const vagueAppProblem = /^(?:app|កម្មវិធី) មាន (?:problem|បញ្ហា)$/u.test(query);
     if (vagueAppProblem || (reportingProblem && (askingAboutClockIn || askingAboutOvertime))) {
       return fallback('needs_clarification', copy.troubleshooting, contact);
-    }
-    if (askingAboutOvertime && (askingHow || askingForOvertimeMenu)) {
-      return fallback('missing_information', copy.overtimeGuide, contact);
-    }
-    const askingToRequestLeave = /\b(?:request (?:annual )?leave|apply for (?:annual )?leave)\b/u.test(query) ||
-      matches(query, ['ស្នើសុំឈប់សម្រាក', 'ស្នើសុំការឈប់សម្រាក']);
-    if (askingHow && (askingAboutClockIn || askingToRequestLeave) && !asksUnverifiedClickHrDetail(query)) {
-      const guide = askingAboutClockIn ? clickHrGuides.clockIn : clickHrGuides.requestLeave;
-      const topic = askingAboutClockIn ? 'attendance' : 'leave';
-      return result('faq', guide[lang], [{ type: 'link', label: copy.mobileGuide, url: clickHrAppListing }], [topic]);
     }
   }
 
@@ -233,12 +257,19 @@ export async function replyTo(bot, { message, language, previous }, classify) {
       return fallback('missing_information', copy.unverified, contact);
     }
   }
-  const asksHuman = matches(query, contactTerms) &&
-    (!specific.length || matches(query, ['who can i contact', 'talk to someone', 'talk to a human', 'customer support']));
+  const asksHuman = matches(query, contactTerms) && (
+    (!specific.length && !documents.length) ||
+    matches(query, ['who can i contact', 'talk to someone', 'talk to a human', 'customer support'])
+  );
 
   if (asksHuman && !ranked.some(({ faq }) => faq.id === 'contact') && contact.length) {
     return result('contact', copy.contactOnly(bot.name), contact);
   }
+  if (followUp) {
+    if (priorKnowledge.length === 1) return answerKnowledge(priorKnowledge, true);
+    return fallback('needs_clarification', copy.clarification(bot.name));
+  }
+  if (documents.length) return answerKnowledge(documents.slice(0, 3), wantsSteps);
   if (ranked.length) {
     const pool = specific.length ? specific : ranked;
     const multiTopic = /\b(?:and|plus|both|also)\b|[&,]|និង/u.test(message);
@@ -257,10 +288,17 @@ export async function replyTo(bot, { message, language, previous }, classify) {
   }
 
   if (classify) {
-    const decision = await classify({ bot, message });
+    const decision = await classify({ bot, message, knowledge, priorKnowledge });
     if (decision?.route === 'pricing' && bot.pricingPolicy === 'meeting') return pricing('ai');
     if (decision?.route === 'meeting' && meetingAvailable) return meeting('ai');
     if (decision?.route === 'contact' && contact.length) return result('contact', copy.contactOnly(bot.name), contact, [], 'ai');
+    if ((decision?.route === 'knowledge' || decision?.route === 'guide') && Array.isArray(decision.topics)) {
+      const resolved = knowledge.filter(({ id }) => decision.topics.includes(id));
+      if (resolved.length) return answerKnowledge(resolved, wantsSteps || decision.route === 'guide', 'ai');
+    }
+    if (decision?.route === 'out_of_scope') return fallback('out_of_scope', copy.outOfScope(bot.name));
+    if (decision?.route === 'clarify') return fallback('needs_clarification', copy.clarification(bot.name));
+    if (decision?.route === 'missing_information') return fallback('missing_information', copy.unverified, contact);
     if (decision?.route === 'faq' && Array.isArray(decision.topics)) {
       const resolved = [...new Set(decision.topics)].map((id) => bot.faqs.find((faq) => faq.id === id)).filter(Boolean);
       if (resolved.length) return answer(resolved, 'ai');

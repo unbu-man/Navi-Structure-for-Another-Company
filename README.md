@@ -53,7 +53,7 @@ Start the free edition with Node.js 24 or newer:
 npm run start:free
 ```
 
-This command always uses the bilingual FAQ engine, even if you already configured a model provider. It needs no model download, paid API key, or account. Navi runs on the computer that starts it. A remotely hosted URL needs a server of its own.
+This command uses local bilingual knowledge search and the saved FAQs, even if you already configured a model provider. It needs no model download, paid API key, or account. Navi runs on the computer that starts it. A remotely hosted URL needs a server of its own.
 
 Open [the API demo](http://127.0.0.1:3000/api-demo) to try Click HR questions and inspect the full JSON response. The [OpenAPI definition](http://127.0.0.1:3000/api/openapi.json) is available from the same server.
 
@@ -78,13 +78,13 @@ For some replies with `intent: "unknown"`, the API also returns a `reason`:
 | `needs_clarification` | It doesn’t work | Ask which feature and task the visitor means. |
 | `missing_information` | Does Click HR support this specific fingerprint device? | Say the detail is unverified and offer support. |
 
-The free matcher recognizes selected phrases in English, Khmer, and Khmer typed in Latin letters. When a message remains unclear, the API may return a general `unknown` reply. A supported paraphrase such as “Can staff punch in from their phones?” can return the saved attendance FAQ.
+Try “Can my supervisor sign off on time off from their phone?” and then “Where do they tap?” Navi remembers that the question is about approvals and offers support for the unverified screen. Ask “Can employees submit leave from an iPhone?” followed by the same question to get the verified iOS steps.
 
-For a follow-up, add `previous` with the preceding reply's `intent` and `topics`. For another company, replace `clickhr` with the bot slug. Browser clients can use the same-origin API or the existing iframe. Server clients can call the API directly.
+The Click HR knowledge entries in [src/clickhr-knowledge.mjs](src/clickhr-knowledge.mjs) store individual tasks with a source and verified steps where available. The browser carries the preceding task in the chat. An API client can do the same by sending the previous reply's `intent`, `topics`, `knowledgeIds`, and `platform` as `previous`. The server validates knowledge IDs against the current bot. For another company, use its slug. Each company can configure its own saved FAQ answers and actions.
 
 ## Optional Gemma or OpenAI routing
 
-Navi uses the FAQ matcher and business rules first. For unmatched questions, enable a model to select an approved FAQ ID or a handoff. Navi still renders the saved answer or a backend workflow message. Provider failures use the contact fallback.
+Navi uses business rules, local knowledge search, and saved FAQs first. For unmatched questions, enable a model to interpret the query and select a supplied knowledge entry, an FAQ, a clarification, or a handoff. It receives the preceding knowledge IDs when available. The server renders the stored bilingual evidence or a workflow message. Provider failures use the local contact fallback.
 
 To try Gemma 3 4B locally, run [Ollama](https://ollama.com/library/gemma3) on the same machine as Navi and download the model. Then start Navi with the Ollama router:
 

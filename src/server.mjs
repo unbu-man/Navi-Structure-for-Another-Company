@@ -148,6 +148,8 @@ export function createNavi({
         const previous = {
           intent: typeof body.previous?.intent === 'string' ? body.previous.intent : '',
           topics: Array.isArray(body.previous?.topics) ? body.previous.topics.slice(0, 3) : [],
+          knowledgeIds: Array.isArray(body.previous?.knowledgeIds) ? body.previous.knowledgeIds.slice(0, 3) : [],
+          platform: ['android', 'ios'].includes(body.previous?.platform) ? body.previous.platform : undefined,
         };
         return json(res, 200, await replyTo(bot, { message, language: body.language, previous }, classify));
       }
