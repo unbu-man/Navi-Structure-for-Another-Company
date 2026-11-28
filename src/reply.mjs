@@ -1,4 +1,5 @@
 const khmer = /\p{Script=Khmer}/u;
+const clickHrAppListing = 'https://apps.apple.com/kh/app/clickhr/id6499134021';
 const romanKhmerPrice = ['tamlai', 'tomlai', 'domlai', 'tomlei', 'thlai ponman', 'kit loy'];
 const priceTerms = [
   'price', 'pricing', 'cost', 'costs', 'quote', 'quotation', 'rate card', 'rates', 'rate for', 'subscription', 'license fee', 'fees',
@@ -61,6 +62,8 @@ const replyCopy = {
     clarification: (name) => `Which ${name} feature are you asking about, and what are you trying to do?`,
     unverified: 'I don’t have verified information for that specific question. The support team can help confirm it.',
     unknown: 'I don’t have a verified answer to that yet. Could you tell me a little more about what you need?',
+    leaveBalance: 'To check your balance, sign in to the Click HR mobile app. From the home screen, open Leave and look for AL (Annual Leave). If the balance is missing or looks wrong, ask your company’s HR team to check it.',
+    mobileGuide: 'View app screenshots',
     account: 'For account issues or personal records, contact your company administrator or the support team. Please keep passwords and private records out of this chat.',
     thanks: 'You’re welcome! Is there anything else I can help you with?',
   },
@@ -77,6 +80,8 @@ const replyCopy = {
     clarification: (name) => `តើអ្នកកំពុងសួរអំពីមុខងារណាមួយរបស់ ${name} ហើយចង់ធ្វើអ្វី?`,
     unverified: 'ខ្ញុំមិនទាន់មានព័ត៌មានដែលបានផ្ទៀងផ្ទាត់សម្រាប់សំណួរជាក់លាក់នេះទេ។ សូមទាក់ទងក្រុមជំនួយដើម្បីបញ្ជាក់។',
     unknown: 'ខ្ញុំមិនទាន់មានចម្លើយដែលបានផ្ទៀងផ្ទាត់សម្រាប់សំណួរនេះទេ។ តើអ្នកអាចប្រាប់បន្ថែមអំពីតម្រូវការរបស់អ្នកបានទេ?',
+    leaveBalance: 'ដើម្បីពិនិត្យចំនួនថ្ងៃឈប់សម្រាកដែលនៅសល់ សូមចូលគណនីក្នុងកម្មវិធី Click HR។ នៅទំព័រដើម សូមបើក Leave (ការឈប់សម្រាក) ហើយរកមើល AL (ការឈប់សម្រាកប្រចាំឆ្នាំ)។ បើមិនឃើញចំនួនថ្ងៃ ឬឃើញថាចំនួនថ្ងៃមិនត្រឹមត្រូវ សូមស្នើឱ្យក្រុមធនធានមនុស្សរបស់ក្រុមហ៊ុនអ្នកពិនិត្យ។',
+    mobileGuide: 'មើលរូបភាពនៃកម្មវិធី',
     account: 'សម្រាប់បញ្ហាគណនី ឬទិន្នន័យផ្ទាល់ខ្លួន សូមទាក់ទងអ្នកគ្រប់គ្រងក្រុមហ៊ុនរបស់អ្នក ឬផ្នែកជំនួយ។ សូមកុំផ្ញើពាក្យសម្ងាត់ ឬឯកសារឯកជនក្នុងការជជែកនេះ។',
     thanks: 'មិនអីទេ! តើមានអ្វីផ្សេងទៀតដែលខ្ញុំអាចជួយបានទេ?',
   },
@@ -125,9 +130,20 @@ export async function replyTo(bot, { message, language, previous }, classify) {
   };
 
   const isClickHr = bot.slug === 'clickhr';
-  if (/\b(?:my|our) (?:own )?(?:salary|payslip|password|login|account|leave balance|payroll data|overtime)\b/u.test(query) ||
+  const asksOwnLeaveBalance = /\b(?:my|our) (?:own )?(?:annual )?leave balance\b/u.test(query) ||
+    /\b(?:leave|pto|vacation time|vacation days) (?:do i have left|have i used|do i have remaining)\b/u.test(query) ||
+    matches(query, ['ថ្ងៃឈប់សម្រាកនៅសល់', 'ថ្ងៃឈប់សម្រាកប្រចាំឆ្នាំនៅសល់', 'ថ្ងៃឈប់សម្រាកប្រចាំឆ្នាំរបស់ខ្ញុំនៅសល់']);
+  const asksHowToViewLeaveBalance = /\b(?:check|view|see|find) (?:the |my |your )?(?:annual )?leave balance\b/u.test(query) ||
+    matches(query, ['មើលចំនួនថ្ងៃឈប់សម្រាក', 'ពិនិត្យចំនួនថ្ងៃឈប់សម្រាក']) ||
+    (includesTerm(query, 'leave balance') && matches(query, ['មើល', 'ពិនិត្យ', 'នៅឯណា']));
+  if (isClickHr && (asksOwnLeaveBalance || asksHowToViewLeaveBalance)) {
+    return result('account', copy.leaveBalance, [
+      { type: 'link', label: copy.mobileGuide, url: clickHrAppListing },
+    ]);
+  }
+  if (asksOwnLeaveBalance ||
+      /\b(?:my|our) (?:own )?(?:salary|payslip|password|login|account|payroll data|overtime)\b/u.test(query) ||
       /\b(?:overtime|hours) (?:did i work|have i worked|did i log)\b/u.test(query) ||
-      /\b(?:leave|pto|vacation time|vacation days) (?:do i have left|have i used|do i have remaining)\b/u.test(query) ||
       matches(query, ['reset password', 'forgot password', 'salary of', 'password reset', 'ភ្លេចពាក្យសម្ងាត់',
         'ប្រាក់ខែរបស់ខ្ញុំ', 'ម៉ោងបន្ថែមរបស់ខ្ញុំ', 'bangkan dai prak kha robos knhom'])) {
     return result('account', copy.account, contact);

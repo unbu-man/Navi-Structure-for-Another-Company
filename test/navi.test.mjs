@@ -210,12 +210,15 @@ test('Free chat distinguishes known fallback reasons and answers supported parap
     { message: 'Can our school use Click HR to track teachers’ attendance?', intent: 'faq', topic: 'attendance' },
     { message: 'Can staff punch in from their phones?', intent: 'faq', topic: 'attendance' },
     { message: 'How much overtime did I work last month?', intent: 'account', contact: true },
-    { message: 'How much annual leave do I have left?', intent: 'account', contact: true },
+    { message: 'How much annual leave do I have left?', intent: 'account', guidance: true },
+    { message: 'How do I check my leave balance?', intent: 'account', guidance: true },
+    { message: 'តើខ្ញុំអាចមើល leave balance នៅឯណា?', intent: 'account', guidance: true, language: 'km' },
+    { message: 'តើថ្ងៃឈប់សម្រាកប្រចាំឆ្នាំនៅសល់ប៉ុន្មានថ្ងៃ?', intent: 'account', guidance: true, language: 'km' },
     { message: 'What would you charge our company each month?', intent: 'pricing', meeting: true },
     { message: 'Click HR ach som chbab chhop tam app ban te?', intent: 'faq', topic: 'leave' },
     { message: 'Can Click HR handle 3 shifts?', previous: { intent: 'pricing' }, intent: 'faq', topic: 'attendance' },
   ]) {
-    const { message, previous, intent, reason, topic, language, contact, meeting } = example;
+    const { message, previous, intent, reason, topic, language, contact, meeting, guidance } = example;
     const response = await app.request('/api/bots/clickhr/chat', { method: 'POST', body: { message, previous } });
     assert.equal(response.status, 200, message);
     const reply = await response.json();
@@ -225,5 +228,9 @@ test('Free chat distinguishes known fallback reasons and answers supported parap
     if (topic) assert.deepEqual(reply.topics, [topic], message);
     assert.equal(reply.actions.some(({ type }) => type === 'meeting'), Boolean(meeting), message);
     if (contact) assert.ok(reply.actions.some(({ url }) => url === clickhr.contactUrl), message);
+    if (guidance) {
+      assert.match(reply.text, /Leave.*AL/u);
+      assert.ok(reply.actions.some(({ url }) => url === 'https://apps.apple.com/kh/app/clickhr/id6499134021'), message);
+    }
   }
 });
