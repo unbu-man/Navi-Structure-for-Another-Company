@@ -156,3 +156,42 @@ test('Password protects the workspace while the public chat remains usable', asy
   await app.request('/api/admin/session', { method: 'POST', headers, body: { action: 'logout' } });
   assert.equal((await app.request('/api/admin/bots', { headers })).status, 401);
 });
+
+test('Gemma routing validates model decisions and preserves approved answer text', async () => {
+  const { configuredRouter, ollamaRouter } = await import('../src/model-router.mjs');
+  assert.equal(configuredRouter({ NAVI_ROUTER: 'ollama' }).modelProvider, 'ollama');
+  assert.throws(() => ollamaRouter({ origin: 'https://example.com' }), /local HTTP origin/);
+  const message = 'Tver doch mdech dermbei som chbab chop somrak?';
+  const fakeModel = (decision) => ollamaRouter({
+    model: 'navi-gemma-adapter',
+    fetcher: async (url, options) => {
+      assert.equal(url.href, 'http://127.0.0.1:11434/api/chat');
+      const payload = JSON.parse(options.body);
+      assert.equal(payload.model, 'navi-gemma-adapter');
+      assert.equal(payload.stream, false);
+      assert.equal(payload.format.additionalProperties, false);
+      assert.equal(JSON.parse(payload.messages[1].content).visitorMessage, message);
+      return Response.json({ message: { content: JSON.stringify(decision) } });
+    },
+  });
+  const answer = await replyTo(clickhr, { message, language: 'km' }, fakeModel({ route: 'faq', topics: ['leave'] }));
+  assert.equal(answer.mode, 'ai');
+  assert.equal(answer.text, clickhr.faqs.find(({ id }) => id === 'leave').km);
+  for (const decision of [
+    { route: 'invented', topics: [] },
+    { route: 'faq', topics: [3] },
+    { route: 'faq', topics: ['invented'] },
+  ]) {
+    assert.equal((await replyTo(clickhr, { message }, fakeModel(decision))).intent, 'unknown');
+  }
+});
+
+test('Romanized Khmer pricing and unverified administrator permissions follow the local rules', async () => {
+  const unexpectedModelCall = () => assert.fail('Expected local routing');
+  const price = await replyTo(clickhr, { message: 'Click HR tamlai ponman for 50 staff?' }, unexpectedModelCall);
+  assert.equal(price.intent, 'pricing');
+  assert.equal(price.language, 'km');
+  assert.ok(price.actions.some(({ type }) => type === 'meeting'));
+  const permissions = await replyTo(clickhr, { message: 'Which admins can edit employee contracts?' }, unexpectedModelCall);
+  assert.equal(permissions.intent, 'unknown');
+});

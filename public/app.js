@@ -4,7 +4,7 @@ const sidebar = $('#sidebar');
 const picker = $('#bot-picker');
 const dialog = $('#meeting-dialog');
 const page = location.pathname.match(/^\/(chat|embed)\/([a-z0-9-]+)$/u);
-const state = { bots: [], slug: '', view: 'playground', passwordRequired: false, aiEnabled: false };
+const state = { bots: [], slug: '', view: 'playground', passwordRequired: false, aiEnabled: false, modelProvider: 'faq' };
 let renderVersion = 0;
 
 function element(tag, className, value) {
@@ -120,7 +120,7 @@ function buildChat(bot) {
 
   $('.chat-title', chat).textContent = bot.name;
   $('.chat-avatar', chat).textContent = initials(bot.name);
-  $('.chat-footnote', chat).textContent = state.aiEnabled
+  $('.chat-footnote', chat).textContent = state.aiEnabled && state.modelProvider === 'openai'
     ? 'Some messages may be sent to OpenAI. Keep private information out of chat.'
     : 'Keep passwords and private records out of chat.';
 
@@ -612,7 +612,7 @@ function refreshSidebar() {
   picker.value = state.slug;
   $('#company-initials').textContent = initials(bot.name);
   const mode = $('#mode');
-  mode.textContent = state.aiEnabled ? 'OpenAI routing enabled' : 'FAQ mode';
+  mode.textContent = state.aiEnabled ? (state.modelProvider === 'ollama' ? 'Local model routing enabled' : 'OpenAI routing enabled') : 'FAQ mode';
   $('#sign-out').hidden = !state.passwordRequired;
   for (const item of $('#navigation').querySelectorAll('button')) {
     if (item.dataset.view === state.view) item.setAttribute('aria-current', 'page');
@@ -669,9 +669,10 @@ async function loadWorkspace() {
   const session = await api('/api/admin/session');
   state.passwordRequired = session.passwordRequired;
   if (!session.authenticated) return login();
-  const { bots, aiEnabled } = await api('/api/admin/bots');
+  const { bots, aiEnabled, modelProvider } = await api('/api/admin/bots');
   state.bots = bots;
   state.aiEnabled = aiEnabled;
+  state.modelProvider = modelProvider;
   state.slug = currentBot()?.slug || 'clickhr';
   main.className = 'main';
   render();
@@ -702,8 +703,9 @@ async function start() {
   try {
     if (!page) return await loadWorkspace();
     const [, kind, slug] = page;
-    const { bot, aiEnabled } = await api('/api/bots/' + slug);
+    const { bot, aiEnabled, modelProvider } = await api('/api/bots/' + slug);
     state.aiEnabled = aiEnabled;
+    state.modelProvider = modelProvider;
     document.title = bot.name + ' · Company assistant';
     main.classList.add('public-page', kind === 'embed' ? 'embed' : 'visitor-page');
     const { chat } = buildChat(bot);

@@ -45,13 +45,30 @@ Click HR’s seeded product information comes from the [official website](https:
 
 Bots share one owner workspace. The public chat answers from the selected company’s configuration and the inbox shows that company’s requests. Each bot has its own visitor URL at `/chat/<slug>` and embed URL at `/embed/<slug>`. A localhost URL is reachable on the computer running Navi. A deployed HTTPS URL is needed for customers to use the link or iframe from their own devices.
 
-## Optional OpenAI routing
+## Optional Gemma or OpenAI routing
 
-Navi starts in FAQ mode. To enable the model for questions the local matcher cannot classify, copy `.env.example` to `.env` and set `OPENAI_API_KEY` on the server. Restart Navi. Set `OPENAI_MODEL` if you want to change the model.
+Navi uses the FAQ matcher and business rules first. For unmatched questions, enable a model to select an approved FAQ ID or a handoff. Navi still renders the saved answer or a backend workflow message. Provider failures use the contact fallback.
 
-For an unmatched question, Navi can send the message and that bot’s approved FAQ content to OpenAI. The model selects an approved topic or handoff route. Navi renders the saved answer or its own workflow message. Explicit Click HR pricing requests are handled locally before any model call. Provider failures fall back to the local response. The kickoff form stores its details directly in SQLite. Chat messages are not stored in the database.
+To try Gemma 3 4B locally, run [Ollama](https://ollama.com/library/gemma3) on the same machine as Navi and download the model. Then start Navi with the Ollama router:
 
-See the [Responses API reference](https://developers.openai.com/api/reference/resources/responses/methods/create).
+```bash
+ollama pull gemma3:4b
+NAVI_ROUTER=ollama npm start
+```
+
+Set `NAVI_OLLAMA_MODEL` to a different local model name when comparing a compatible adapter. If you use OpenAI, set `NAVI_ROUTER=openai` and `OPENAI_API_KEY` on the server. An OpenAI API key also enables that provider when `NAVI_ROUTER` is left blank. In OpenAI mode, unmatched messages and that bot's approved FAQ text can be sent to the provider. The kickoff form writes directly to SQLite.
+
+## Evaluate Click HR
+
+```bash
+NAVI_ROUTER=faq npm run eval
+NAVI_ROUTER=ollama npm run eval
+NAVI_ROUTER=ollama NAVI_OLLAMA_MODEL=your-gemma-adapter npm run eval
+```
+
+The evaluation uses the 24 labeled examples in [eval/clickhr-cases.json](eval/clickhr-cases.json). It reports matches by language group, individual misses, and failed model calls. A failed provider call falls back to Navi but makes the evaluation exit with a failure status so a fallback score cannot stand in for a working provider. Reply language is scored for English, Khmer script, and mixed script. The Romanized Khmer cases score the route because language selection remains ambiguous for spelling variants.
+
+Use these examples as development checks. To select a model or train an adapter, collect approved customer-like examples and reserve a separate test set with new phrasings and customer scenarios. Compare the base model and adapter with the same FAQs and routing rules.
 
 ## Service configuration
 
@@ -63,6 +80,9 @@ See the [Responses API reference](https://developers.openai.com/api/reference/re
 | `NAVI_ADMIN_PASSWORD` | Empty | Protects the owner workspace. Set at least 12 characters for a non-local listener. |
 | `NAVI_SECURE_COOKIE` | `0` | Set to `1` when serving the workspace over HTTPS. |
 | `NAVI_PUBLIC_ORIGIN` | Empty | Set to the external HTTPS origin when a proxy changes the incoming Host header. |
+| `NAVI_ROUTER` | Empty | `faq`, `ollama`, or `openai`. |
+| `NAVI_OLLAMA_MODEL` | `gemma3:4b` | Local model or compatible adapter name. |
+| `NAVI_OLLAMA_ORIGIN` | `http://127.0.0.1:11434` | Local Ollama HTTP origin. |
 | `OPENAI_API_KEY` | Empty | Enables optional OpenAI routing. |
 | `OPENAI_MODEL` | `gpt-4.1-mini` | Model used for routing. |
 
@@ -74,4 +94,4 @@ For a hosted deployment, run one Navi instance behind an HTTPS reverse proxy wit
 npm test
 ```
 
-The test suite covers Click HR pricing in English and Khmer, FAQ sources and unknown questions, the optional model integration with a simulated provider, company and inbox isolation, SQLite persistence, and workspace authentication.
+The test suite covers Click HR pricing in English and Khmer, FAQ sources and unknown questions, the optional OpenAI and Ollama integrations with simulated providers, company and inbox isolation, SQLite persistence, and workspace authentication.

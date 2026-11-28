@@ -4,7 +4,8 @@ import { createServer } from 'node:http';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { InputError, field, validateBot, validateLead } from './config.mjs';
-import { openAiRouter, publicBot, replyTo } from './reply.mjs';
+import { publicBot, replyTo } from './reply.mjs';
+import { configuredRouter } from './model-router.mjs';
 import { openStore } from './store.mjs';
 
 const assets = new Map(Object.entries({
@@ -54,7 +55,7 @@ function requestIp(req) {
 
 export function createNavi({
   dbPath = ':memory:', password = '', secureCookie = false, allowLocalAdmin = true,
-  classify = null, publicOrigin = '',
+  classify = null, modelProvider = classify ? 'openai' : 'faq', publicOrigin = '',
 } = {}) {
   const store = openStore(dbPath);
   const sessions = new Map();
@@ -136,7 +137,7 @@ export function createNavi({
       const [, slug, action] = botRoute;
       const bot = store.getBot(slug);
       if (!bot) throw new InputError('This bot could not be found.', 404);
-      if (!action && method === 'GET') return json(res, 200, { bot: publicBot(bot), aiEnabled: Boolean(classify) });
+      if (!action && method === 'GET') return json(res, 200, { bot: publicBot(bot), aiEnabled: Boolean(classify), modelProvider });
       if (action === 'chat' && method === 'POST') {
         limit(req, 'chat', 40);
         const body = await readJson(req);
@@ -179,7 +180,7 @@ export function createNavi({
 
     if (path.startsWith('/api/admin/')) {
       if (!authenticated(req)) throw new InputError('Sign in to open the workspace.', 401);
-      if (path === '/api/admin/bots' && method === 'GET') return json(res, 200, { bots: store.listBots(), aiEnabled: Boolean(classify) });
+      if (path === '/api/admin/bots' && method === 'GET') return json(res, 200, { bots: store.listBots(), aiEnabled: Boolean(classify), modelProvider });
       if (path === '/api/admin/bots' && method === 'POST') {
         const body = await readJson(req);
         const bot = validateBot(body, body.slug);
@@ -240,7 +241,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     allowLocalAdmin: localHosts.has(host),
     secureCookie: process.env.NAVI_SECURE_COOKIE === '1',
     publicOrigin: process.env.NAVI_PUBLIC_ORIGIN ? new URL(process.env.NAVI_PUBLIC_ORIGIN).origin : '',
-    classify: openAiRouter({ apiKey: process.env.OPENAI_API_KEY, model: process.env.OPENAI_MODEL || 'gpt-4.1-mini' }),
+    ...configuredRouter(),
   });
   const displayHost = host === '0.0.0.0' ? 'localhost' : host.includes(':') ? `[${host}]` : host;
   server.listen(port, host, () => console.log(`Navi is running at http://${displayHost}:${server.address().port}`));
